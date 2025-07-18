@@ -4,7 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"github.com/bwesterb/go-zonefile"
+	"golang.org/x/net/publicsuffix"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -22,16 +24,37 @@ func main() {
 
 	domains := make(map[string][]string)
 
-	for _, entrie := range zf.Entries() {
-		domain := string(entrie.Domain())
-		ns := string(entrie.Values()[0])
+	for _, entry := range zf.Entries() {
+		domain := string(entry.Domain())
+		ns := string(entry.Values()[0])
 
-		if string(entrie.Type()) == "NS" && len(entrie.Values()) > 0 {
+		if string(entry.Type()) == "NS" && len(entry.Values()) > 0 {
 			domains[domain] = append(domains[domain], ns)
 		}
 	}
+
+	domainsNameservers := make(map[string][]string)
+
 	for domain, ns := range domains {
-		fmt.Printf("%s, %s\n", domain, ns)
+		exists := false
+		for _, ns := range ns {
+			notFQDN, err := publicsuffix.EffectiveTLDPlusOne(strings.TrimSuffix(ns, "."))
+			if err != nil {
+				exit(fmt.Sprintf("Failed to get public suffix: %s, Error %s", ns, err))
+			}
+			for _, ns := range domainsNameservers[domain] {
+				if notFQDN == ns {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				domainsNameservers[domain] = append(domainsNameservers[domain], notFQDN)
+			}
+		}
+	}
+	for domain, ns := range domainsNameservers {
+		fmt.Printf("%s: %s\n", domain, ns)
 	}
 }
 
