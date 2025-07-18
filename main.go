@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/bwesterb/go-zonefile"
+	"github.com/openrdap/rdap"
 	"golang.org/x/net/publicsuffix"
 	"os"
 	"strings"
@@ -53,9 +54,34 @@ func main() {
 			}
 		}
 	}
-	for domain, ns := range domainsNameservers {
-		fmt.Printf("%s: %s\n", domain, ns)
+	//	for domain, ns := range domainsNameservers {
+	//		fmt.Printf("%s: %s\n", domain, ns)
+	//	}
+
+	rdapData := searchForDomains(domainsNameservers)
+
+	for domain, info := range rdapData {
+		fmt.Printf("Domain: %s, Registrar: %s\n", domain, info.Remarks)
 	}
+}
+
+func searchForDomains(domainsNameservers map[string][]string) map[string]*rdap.Domain {
+	client := &rdap.Client{}
+	results := make(map[string]*rdap.Domain)
+	for _, nsList := range domainsNameservers {
+		for _, domain := range nsList {
+			fmt.Println("Searching for", domain)
+			data, err := client.QueryDomain(domain)
+			if err != nil {
+				fmt.Println("Error searching for", domain, err.Error())
+			} else {
+				fmt.Println(data.Events, "\n", data.LDHName, "\n")
+				results[domain] = data
+			}
+		}
+	}
+
+	return results
 }
 
 func exit(msg string) {
